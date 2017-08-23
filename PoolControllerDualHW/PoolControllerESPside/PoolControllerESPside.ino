@@ -44,42 +44,6 @@ char pass[] = "vaffanculoatecazzone";
 
 
 
-//User-written Functions
-//void showMem();
-
-
-//Display LEDs bits from pool (to be read by Arduino)
-//Byte 1
-#define heaterOn          0x01
-#define solarOn           0x02
-#define checkSystemOn     0x04
-#define poolOn            0x08
-#define spaOn             0x10
-#define filterOn          0x20
-#define lightOn           0x40
-#define spaLightOn        0x80
-//Byte 2
-#define aux2On            0x01
-#define serviceOn         0x02
-#define aux3On            0x04
-#define aux4On            0x08
-#define aux5On            0x10
-#define aux6On            0x20
-#define Valve4On          0x40
-#define spilloverOn       0x80
-//Byte 3
-#define systemOffOn       0x01
-#define aux7On            0x02
-#define aux8On            0x04
-#define aux9On            0x08
-#define aux10On           0x10
-#define aux11On           0x20
-#define aux12On           0x40
-#define aux13On           0x80
-//Byte 4
-#define aux14On           0x01
-#define superChlorOn      0x02
-
 
 //Arduino's internal storage bits for items to be controlled (need to fit into a Byte)
 #define filterBit         0x80

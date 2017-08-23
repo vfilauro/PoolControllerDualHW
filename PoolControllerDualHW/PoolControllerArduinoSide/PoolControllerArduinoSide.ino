@@ -131,26 +131,6 @@ void setup()   /****** SETUP: RUNS ONCE ******/
 
 
 
- /*
- Blynk.virtualWrite(POOL_LIGHT_VIRTUAL_PIN,poolStatusFlag & lightBit?255:0);
- Blynk.virtualWrite(SPA_LIGHT_VIRTUAL_PIN, poolStatusFlag & spaLightBit?255:0);
- Blynk.virtualWrite(SPAnPOOL_STATUS_VIRTUAL_PIN,poolStatusFlag & poolSpaBit?255:0);
- Blynk.virtualWrite(nSPAPOOL_STATUS_VIRTUAL_PIN, poolStatusFlag & poolSpaBit?0:255);
- Blynk.virtualWrite(FILTER_STATUS_VIRTUAL_PIN, poolStatusFlag & filterBit?255:0);
- Blynk.virtualWrite(FILTER_SPEED_VIRTUAL_PIN,filterSpeed);
- Blynk.virtualWrite(SOLAR_STATUS_VIRTUAL_PIN,poolStatusFlag & solarBit?255:0);
- Blynk.virtualWrite(POOL_TEMP_VIRTUAL_PIN,poolTemp);
- Blynk.virtualWrite(AIR_TEMP_VIRTUAL_PIN,airTemp);
-
- Blynk.virtualWrite(POOL_CHLOR_VIRTUAL_PIN,poolChlor);
- Blynk.virtualWrite(SALT_LEVEL_VIRTUAL_PIN,saltLevel);
- Blynk.virtualWrite(POOL_LIGHT_TOGGLE_VIRTUAL_PIN,poolStatusFlag & lightBit?1:0);
- Blynk.virtualWrite(SPA_LIGHT_TOGGLE_VIRTUAL_PIN,poolStatusFlag & spaLightBit?1:0);
- Blynk.virtualWrite(FILTER_TOGGLE_VIRTUAL_PIN, poolStatusFlag & filterBit?1:0);
- Blynk.virtualWrite(SOLAR_TOGGLE_VIRTUAL_PIN,poolStatusFlag & solarBit?1:0);
- Blynk.virtualWrite(SPAPOOL_TOGGLE_VIRTUAL_PIN,poolStatusFlag & poolSpaBit?"pool":"spa");
- */
-
 void loop()   /****** LOOP: RUNS CONSTANTLY ******/
 {
 
