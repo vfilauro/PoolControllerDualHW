@@ -12,10 +12,17 @@
 #include <TimeAlarms.h>
 
 #include <SPI.h>
-#include <ESP8266WiFi.h>
+//#include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
 
 #define DEBUG 0  //0: nothing; 1: status; 10: wip 20: protocol;  99 all
+#define DebugSerial Serial
+#define DEBUG_SERIAL_BAUD_RATE 115200
+
+#define CommSerial Serial
+#define COMM_SERIAL_BAUD_RATE 115200
+
+
 char auth[] = "f9a5ffd833664abba1a90d5b4b349134";
 
 // Your WiFi credentials.
@@ -42,7 +49,9 @@ char pass[] = "vaffanculoatecazzone";
 #define SPAnPOOL_STATUS_VIRTUAL_PIN  V16
 #define SPAPOOL_TOGGLE_VIRTUAL_PIN  V17
 
-
+#define BLYNK_COLOR_PENDING "#CCCCCC"
+#define BLYNK_COLOR_OFF "#000000"
+#define BLYNK_COLOR_ON "#00FF00"
 
 
 //Arduino's internal storage bits for items to be controlled (need to fit into a Byte)
@@ -55,7 +64,7 @@ char pass[] = "vaffanculoatecazzone";
 #define superChlorOnBit   0x02
 #define heaterBit         0x01
 
-byte poolStatusFlag = 0;  // most recent pool status
+byte poolStatusFlag = 0;  // most recently stored pool status
 byte newStatusFlag = 0;
 boolean sendPending = false;
 bool okToSend = false;
@@ -67,6 +76,13 @@ int poolChlor = 0;
 int saltLevel = 0;
 int filterSpeed = 0;
 
+bool pendingPoolLightToggle = false;
+bool pendingSpaLightToggle = false;
+bool pendingFilterToggle = false;
+bool pendingSolarToggle = false;
+bool pendingSpaToggle = false;
+int pendingCmdCount = 0;
+
 BlynkTimer timer;
 int handleBlynkRunTimer;
 int handleBlynkWriteHighFreqTimer;
@@ -76,63 +92,64 @@ int getPoolStatusUpdateTimer;
 void setup()   /****** SETUP: RUNS ONCE ******/
 {
 	// Start the built-in serial port, probably to Serial Monitor
-	Serial.begin(115200);
-
+	CommSerial.begin(COMM_SERIAL_BAUD_RATE);
 #if DEBUG >=1
-	Serial.println("Initializing...");
+	DebugSerial.begin(DEBUG_SERIAL_BAUD_RATE);
 #endif
 
-	handleBlynkRunTimer = timer.setInterval(4000L, handleBlynkRun);
-	handleBlynkWriteHighFreqTimer = timer.setInterval(5000L, handleBlynkWriteHighFreq);
-	handleBlynkWriteLowFreqTimer = timer.setInterval(23456L, handleBlynkWriteLowFreq);
+#if DEBUG >=1
+	DebugSerial.println("Initializing...");
+#endif
+
+	//get a first read from the pool before Blynk connects (and variables all get updated)
+	GetPoolStatusUpdate();
+
+	handleBlynkWriteLowFreqTimer = timer.setInterval(25100L, handleBlynkWriteLowFreq);
 	getPoolStatusUpdateTimer = timer.setInterval(5000L, GetPoolStatusUpdate);
 
 	Blynk.begin(auth, ssid, pass);
 
-
 #if DEBUG >=1
 	showMem();
-	Serial.println("done");
+	DebugSerial.println("done");
 #endif
 
 }//--(end setup )---
 
 
-void handleBlynkRun() {
-	Blynk.run();
-}
 
-void handleBlynkWriteHighFreq() {
 
+BLYNK_CONNECTED() {
 	Blynk.virtualWrite(POOL_LIGHT_VIRTUAL_PIN, poolStatusFlag & lightBit ? 255 : 0);
 	Blynk.virtualWrite(SPA_LIGHT_VIRTUAL_PIN, poolStatusFlag & spaLightBit ? 255 : 0);
-	Blynk.virtualWrite(SPAnPOOL_STATUS_VIRTUAL_PIN, poolStatusFlag & poolSpaBit ? 255 : 0);
-	Blynk.virtualWrite(nSPAPOOL_STATUS_VIRTUAL_PIN, poolStatusFlag & poolSpaBit ? 0 : 255);
 	Blynk.virtualWrite(FILTER_STATUS_VIRTUAL_PIN, poolStatusFlag & filterBit ? 255 : 0);
-	Blynk.virtualWrite(FILTER_SPEED_VIRTUAL_PIN, filterSpeed);
 	Blynk.virtualWrite(SOLAR_STATUS_VIRTUAL_PIN, poolStatusFlag & solarBit ? 255 : 0);
-	Blynk.virtualWrite(POOL_TEMP_VIRTUAL_PIN, poolTemp);
-	Blynk.virtualWrite(AIR_TEMP_VIRTUAL_PIN, airTemp);
-}
-
-void handleBlynkWriteLowFreq() {
-	Blynk.virtualWrite(POOL_CHLOR_VIRTUAL_PIN, poolChlor);
-	Blynk.virtualWrite(SALT_LEVEL_VIRTUAL_PIN, saltLevel);
 	Blynk.virtualWrite(POOL_LIGHT_TOGGLE_VIRTUAL_PIN, poolStatusFlag & lightBit ? 1 : 0);
 	Blynk.virtualWrite(SPA_LIGHT_TOGGLE_VIRTUAL_PIN, poolStatusFlag & spaLightBit ? 1 : 0);
 	Blynk.virtualWrite(FILTER_TOGGLE_VIRTUAL_PIN, poolStatusFlag & filterBit ? 1 : 0);
 	Blynk.virtualWrite(SOLAR_TOGGLE_VIRTUAL_PIN, poolStatusFlag & solarBit ? 1 : 0);
 	Blynk.virtualWrite(SPAPOOL_TOGGLE_VIRTUAL_PIN, poolStatusFlag & poolSpaBit ? "pool" : "spa");
+	Blynk.virtualWrite(AIR_TEMP_VIRTUAL_PIN, airTemp);
+	Blynk.virtualWrite(POOL_TEMP_VIRTUAL_PIN, poolTemp);
+	Blynk.virtualWrite(FILTER_SPEED_VIRTUAL_PIN, filterSpeed);
+	Blynk.virtualWrite(SALT_LEVEL_VIRTUAL_PIN, saltLevel); 
+	Blynk.virtualWrite(nSPAPOOL_STATUS_VIRTUAL_PIN, poolStatusFlag & poolSpaBit ? 0 : 255);
+	Blynk.virtualWrite(SPAnPOOL_STATUS_VIRTUAL_PIN, poolStatusFlag & poolSpaBit ? 255 : 0);
+	Blynk.virtualWrite(POOL_CHLOR_VIRTUAL_PIN, poolChlor);	
+}
 
+
+
+void handleBlynkWriteLowFreq() {
+	Blynk.virtualWrite(FILTER_SPEED_VIRTUAL_PIN, filterSpeed);
+	Blynk.virtualWrite(POOL_TEMP_VIRTUAL_PIN, poolTemp);
+	Blynk.virtualWrite(AIR_TEMP_VIRTUAL_PIN, airTemp); 
+	Blynk.virtualWrite(POOL_CHLOR_VIRTUAL_PIN, poolChlor);
+	Blynk.virtualWrite(SALT_LEVEL_VIRTUAL_PIN, saltLevel);
 }
 void loop()   /****** LOOP: RUNS CONSTANTLY ******/
 {
-
-	/*
-	* Need to develop controls to:
-	* 1) periodically get updated poolStatus frames from Arduino
-	* 2) depending on Blynk command, write to Serial/Console
-	*/
+	Blynk.run();
 	timer.run();
 	Alarm.delay(0);  //just to make the alarms work
 
@@ -143,77 +160,170 @@ void loop()   /****** LOOP: RUNS CONSTANTLY ******/
 
 void GetPoolStatusUpdate() {
 
-	byte byteReceived;
-	byte buffer[20];
-	byte *bufPtr;
+	byte newPoolStatusFlag = 0; // newly read pool status
 
 	// Needs to match sequence on the ArduinoSide ( poolFrameReport() )
-	Serial.println('r');
-	Serial.flush();
-	while (Serial.available() < 12) {
-		//if timeout is reached then exit
-	}
+	CommSerial.println('r');
+	CommSerial.flush();
 
-	if (Serial.read() == 'H') {
-		poolStatusFlag = Serial.read();
-		poolTemp = Serial.read();
-		poolTemp = poolTemp + Serial.read() << 8;
-		airTemp = Serial.read();
-		airTemp = airTemp + Serial.read() << 8;
-		poolChlor = Serial.read();
-		poolChlor = poolChlor + Serial.read() << 8;
-		saltLevel = Serial.read();
-		saltLevel = saltLevel + Serial.read() << 8;
-		filterSpeed = Serial.read();
-		filterSpeed = filterSpeed + Serial.read() << 8;
+	enum frameState { WAIT, START, END, COMPLETED };
+	enum frameState myFrameState = WAIT;
+	unsigned long startclock = millis();
+	
+	while ((millis() - startclock < 5000L) && (myFrameState != COMPLETED)) {
+		switch (myFrameState) {
+		case WAIT:
+			if (CommSerial.read() == 'H')
+				myFrameState = START;
+		case START:
+			if (CommSerial.available() > 11) {
+				//this is the data we are expecting
+				newPoolStatusFlag = CommSerial.read();
+				poolTemp = CommSerial.read();
+				poolTemp = poolTemp + CommSerial.read() << 8;
+				airTemp = CommSerial.read();
+				airTemp = airTemp + CommSerial.read() << 8;
+				poolChlor = CommSerial.read();
+				poolChlor = poolChlor + CommSerial.read() << 8;
+				saltLevel = CommSerial.read();
+				saltLevel = saltLevel + CommSerial.read() << 8;
+				filterSpeed = CommSerial.read();
+				filterSpeed = filterSpeed + CommSerial.read() << 8;
+				myFrameState = END;
+			}
+		case END:
+			//clear any remaining data
+			while (CommSerial.available() > 0)
+				CommSerial.read();
+			myFrameState = COMPLETED;
+		case COMPLETED:
+			//update Blynk App/Server if something changed from current status
+			if (newPoolStatusFlag != poolStatusFlag) {
+				int tmpFlag;
+				if ((tmpFlag = newPoolStatusFlag&lightBit) != poolStatusFlag&lightBit) {
+					Blynk.setProperty(POOL_LIGHT_TOGGLE_VIRTUAL_PIN, "color", tmpFlag ? BLYNK_COLOR_ON : BLYNK_COLOR_OFF);
+					Blynk.virtualWrite(POOL_LIGHT_VIRTUAL_PIN, tmpFlag ? 255 : 0);
+					if (pendingPoolLightToggle) {
+						pendingPoolLightToggle = false;
+						pendingCmdCount--;
+					}
+				}
+				if ((tmpFlag = newPoolStatusFlag&spaLightBit) != poolStatusFlag&spaLightBit) {
+					Blynk.setProperty(SPA_LIGHT_TOGGLE_VIRTUAL_PIN, "color", tmpFlag ? BLYNK_COLOR_ON : BLYNK_COLOR_OFF);
+					Blynk.virtualWrite(SPA_LIGHT_VIRTUAL_PIN, tmpFlag ? 255 : 0);
+					if (pendingSpaToggle) {
+						pendingSpaToggle = false;
+						pendingCmdCount--;
+					}
+				}
+				if ((tmpFlag = newPoolStatusFlag&filterBit) != poolStatusFlag&filterBit) {
+					Blynk.setProperty(FILTER_TOGGLE_VIRTUAL_PIN, "color", tmpFlag ? BLYNK_COLOR_ON : BLYNK_COLOR_OFF);
+					Blynk.virtualWrite(FILTER_STATUS_VIRTUAL_PIN, tmpFlag ? 255 : 0);
+					if (pendingFilterToggle) {
+						pendingFilterToggle = false;
+						pendingCmdCount--;
+					}
+				}
+				if ((tmpFlag = newPoolStatusFlag&solarBit) != poolStatusFlag&solarBit) {
+					Blynk.setProperty(SOLAR_TOGGLE_VIRTUAL_PIN, "color", tmpFlag ? BLYNK_COLOR_ON : BLYNK_COLOR_OFF);
+					Blynk.virtualWrite(SOLAR_STATUS_VIRTUAL_PIN, tmpFlag ? 255 : 0);
+					if (pendingSolarToggle) {
+						pendingSolarToggle = false;
+						pendingCmdCount--;
+					}
+				}
+				if ((tmpFlag = newPoolStatusFlag&poolSpaBit) != poolStatusFlag&poolSpaBit) {
+					Blynk.setProperty(SPAPOOL_TOGGLE_VIRTUAL_PIN, "color", tmpFlag ? BLYNK_COLOR_ON : BLYNK_COLOR_OFF);
+					Blynk.virtualWrite(SPAnPOOL_STATUS_VIRTUAL_PIN, tmpFlag ? 255 : 0);
+					if (pendingSpaToggle) {
+						pendingSpaToggle = false;
+						pendingCmdCount--;
+					}
+				}
+				poolStatusFlag = newPoolStatusFlag;
+#if DEBUG>=1
+				if (pendingCmdCount < 0)
+					DebugSerial.println("DBG: pendingCmdCount cannot be negative!");
+#endif
+			}
+			break;
+		}
 	}
-	//clear any remaining data
-	while (Serial.available()>0) Serial.read();
-	//if something changed from current status should it initiate BlynkWrite???
 }
+
+
 
 void sendCommandToPool(byte cmd) {
-	Serial.println((char)cmd);
+	switch ((char)cmd) {
+	case 'l':
+	case 'j':
+	case 'f':
+	case 's':
+	case 'p':
+		pendingCmdCount++;
+		CommSerial.println((char)cmd);
+		break;
+	default:
+#if DEBUG >=1
+		DebugSerial.println("DBG: Command not supported!");
+#endif
+		;
+	}
+	return;
 }
-
-
-//NONE
-//*********( THE END )***********
-
 
 
 
 BLYNK_WRITE(POOL_LIGHT_TOGGLE_VIRTUAL_PIN)
 {
 	int pinValue = param.asInt();
-	sendCommandToPool('l');
+	if (pendingPoolLightToggle == false) {
+		Blynk.setProperty(POOL_LIGHT_TOGGLE_VIRTUAL_PIN, "color", BLYNK_COLOR_PENDING);
+		sendCommandToPool('l');
+		pendingPoolLightToggle = true;
+	}
 }
 
 BLYNK_WRITE(SPA_LIGHT_TOGGLE_VIRTUAL_PIN)
 {
 	int pinValue = param.asInt();
-	sendCommandToPool('j');
-
+	if (pendingSpaLightToggle == false) {
+		Blynk.setProperty(SPA_LIGHT_TOGGLE_VIRTUAL_PIN, "color", BLYNK_COLOR_PENDING);
+		sendCommandToPool('j');
+		pendingSpaLightToggle = true;
+	}
 }
 
 BLYNK_WRITE(FILTER_TOGGLE_VIRTUAL_PIN)
 {
 	int pinValue = param.asInt();
-	sendCommandToPool('f');
+	if (pendingFilterToggle == false) {
+		Blynk.setProperty(FILTER_TOGGLE_VIRTUAL_PIN, "color", BLYNK_COLOR_PENDING);
+		sendCommandToPool('f');
+		pendingFilterToggle = true;
+	}
 
 }
 
 BLYNK_WRITE(SOLAR_TOGGLE_VIRTUAL_PIN)
 {
 	int pinValue = param.asInt();
-	sendCommandToPool('s');
+	if (pendingSolarToggle == false) {
+		Blynk.setProperty(SOLAR_TOGGLE_VIRTUAL_PIN, "color", BLYNK_COLOR_PENDING);
+		sendCommandToPool('s');
+		pendingSolarToggle = true;
+	}
 
 }
 
 BLYNK_WRITE(SPAPOOL_TOGGLE_VIRTUAL_PIN)
 {
 	int pinValue = param.asInt();
-	sendCommandToPool('p');
+	if (pendingSpaToggle == false) {
+		Blynk.setProperty(SPAPOOL_TOGGLE_VIRTUAL_PIN, "color", BLYNK_COLOR_PENDING);
+		sendCommandToPool('p');
+		pendingSpaToggle = true;
+	}
 
 }
 

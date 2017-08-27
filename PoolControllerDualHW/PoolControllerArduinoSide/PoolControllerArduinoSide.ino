@@ -141,12 +141,12 @@ void loop()   /****** LOOP: RUNS CONSTANTLY ******/
 
 }//--(end main loop )---
 
- /*-----( Declare User-written Functions )-----*/
-
+#if DEBUG >= 1
 void showMem() {
 	Serial.print("Free Memory = ");
 	Serial.println(freeMemory());
 }
+#endif
 
 
 void handlePool() {
@@ -412,13 +412,8 @@ void poolFrameReport() {
 	Serial.write(highByte(saltLevel));
 	Serial.write(lowByte(filterSpeed));
 	Serial.write(highByte(filterSpeed));
-	//TO-DO: add checks for additional controls defined
 	Serial.flush();
 }
-
-
-//NONE
-//*********( THE END )***********
 
 
 void handleConsole(void)
@@ -489,9 +484,10 @@ void handleConsole(void)
 		//TO-DO: add commands for additional controls defined
 		default:  //capture it all
 			commandPtr = 0;
+#if DEBUG >= 1
 			Serial.println("Command not recognized");
+#endif
 		}
-		//    Serial.flush();
 		Serial.flush();
 		if (commandPtr != 0)
 			sendPending = true;
